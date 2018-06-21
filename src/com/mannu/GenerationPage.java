@@ -1,11 +1,14 @@
 package com.mannu;
 
+import java.awt.Color;
 import java.awt.EventQueue;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
 import java.text.DateFormat;
@@ -16,18 +19,16 @@ import java.util.List;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
-
-import com.itextpdf.text.Document;
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.Image;
-import com.itextpdf.text.Rectangle;
-import com.itextpdf.text.pdf.PdfAConformanceLevel;
-import com.itextpdf.text.pdf.PdfAWriter;
-import com.itextpdf.text.pdf.PdfName;
-import com.itextpdf.text.pdf.PdfString;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 
 public class GenerationPage {
-	
+	PDDocument doc = null;
+	PDPage page =null;
 	DataUtility utility=new DataUtility();
 	
 	public static void main(String[] args) {
@@ -41,6 +42,13 @@ public class GenerationPage {
 					if(!fname.exists()) {
 						rt.exec(new String[] {"cmd.exe","/c","net use \\\\srv-kdms-file2\\images /user:logicalaccess@karvy.com India@123"});
 					}
+					String baseUrl2 = FilenameUtils.getPath("\\\\srv-kdms-pan5\\images");
+					File fname2=new File(baseUrl2);
+					Runtime rt2 = Runtime.getRuntime();
+					if(!fname2.exists()) {
+						rt2.exec(new String[] {"cmd.exe","/c","net use \\\\srv-kdms-pan5\\images /user:logicalaccess@karvy.com India@123"});
+					}
+					
 					String baseUrl1 = FilenameUtils.getPath("\\\\192.168.78.197\\pan-scan6");
 					File fname1=new File(baseUrl1);
 					Runtime rt1 = Runtime.getRuntime();
@@ -51,23 +59,17 @@ public class GenerationPage {
 					} catch (Exception e2) {
 						e2.printStackTrace();
 					}
-				try {
-					new GenerationPage();
-				} catch (FileNotFoundException | DocumentException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
 			}
 		});
 	}
 
-	public GenerationPage() throws DocumentException, IOException {
+	public GenerationPage() throws IOException {
 		DateFormat df=new SimpleDateFormat("dd-MM-yyyy");
 		File ff=new File("\\\\192.168.78.197\\pan-scan6\\"+df.format(new Date()));
 		if(!ff.exists()) {
 			ff.mkdir();
 		}
+		
 		List<AckDetail> ackDetails=utility.getAckList();
 		for(AckDetail ackDetail:ackDetails) {
 			System.out.println("Data Details: "+ackDetail.getAckno()+" ^ "+ackDetail.getInwardno());
@@ -76,58 +78,45 @@ public class GenerationPage {
 				File fi=new File(filepath.get(0));
 				utility.adminUpdate(ackDetail.getAckno());
 				if(fi.exists()) {
-					utility.updatepath(ff+"\\"+ackDetail.getInwardno()+"_"+ackDetail.getAckno()+".pdf",ackDetail.getInwardno(),ackDetail.getAckno());
-					Document document=new Document();
-					PdfAWriter writer=PdfAWriter.getInstance(document,
-							new FileOutputStream(ff+"\\"+ackDetail.getInwardno()+"_"+ackDetail.getAckno()+".pdf"), PdfAConformanceLevel.PDF_A_1A);
-					document.addTitle(ackDetail.getAckno());
-					document.addAuthor("Author");
-					document.addSubject("Karvy-Pan");
-					document.addLanguage("nl-nl");
-			        document.addCreationDate();
-			        document.addCreator("Karvy-Mannu");
-			        writer.setTagged();
-			        writer.createXmpMetadata();
-					document.open();
+					doc = new PDDocument();
 					for(String str:filepath) {
-						Image img=makeGray(str.toString());	
-						img.setAccessibleAttribute(PdfName.ALT, new PdfString("Logo"));
-						document.setPageSize(new Rectangle(img.getWidth(), img.getHeight()));
-						document.setMargins(0, 0, 0, 0);
-						document.newPage();
-						document.add(img);
+						BufferedImage awtImage = BWimage(str.toString());
+						page = new PDPage(new PDRectangle( awtImage.getWidth(), awtImage.getHeight() ));
+					    doc.addPage(page);
+					    PDImageXObject  pdImageXObject = LosslessFactory.createFromImage(doc, awtImage);
+					    PDPageContentStream contentStream = new PDPageContentStream(doc, page, true, false);
+					    contentStream.drawImage(pdImageXObject, 0, 0, awtImage.getWidth(), awtImage.getHeight());
+					    contentStream.close();
 					}
-					document.close();
-					writer.close();
+					doc.save(ff+"\\"+ackDetail.getInwardno()+"_"+ackDetail.getAckno()+".pdf");
+					doc.close();
+					utility.updatepath(ff+"\\"+ackDetail.getInwardno()+"_"+ackDetail.getAckno()+".pdf",ackDetail.getInwardno(),ackDetail.getAckno());
+					
+					
 				}
 				
 			} else {
 				System.out.println("Image Not found in Smart Server");
 			}
-			
-			
-		}
-		
-		
+		}	
 	}
-	
-	private Image makeGray(String filepath) throws IOException, DocumentException{
+	private static BufferedImage BWimage(String file) {
+		BufferedImage image = null;
 		try {
-			String baseUrl = FilenameUtils.getPath(filepath);
-			File fname=new File(baseUrl);
-			Runtime rt = Runtime.getRuntime();
-			if(!fname.exists()) {
-				rt.exec(new String[] {"cmd.exe","/c","net use "+filepath+" /user:logicalaccess@karvy.com India@123"});
-			}
-			} catch (Exception e2) {
-				e2.printStackTrace();
-			}
-		BufferedImage bi = ImageIO.read(new File(filepath));
-        BufferedImage newBi = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_BINARY);
-        newBi.getGraphics().drawImage(bi, 0, 0, null);
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(newBi, "png", baos);
-        return Image.getInstance(baos.toByteArray());
+			image = ImageIO.read(new File(file));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+        BufferedImage result = new BufferedImage(
+                image.getWidth(),
+                image.getHeight(),
+                BufferedImage.TYPE_BYTE_BINARY);
+
+        Graphics2D graphic = result.createGraphics();
+        graphic.drawImage(image, 0, 0, Color.WHITE, null);
+        graphic.dispose();
+        
+		return result;
 	}
-	
 }

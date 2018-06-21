@@ -22,7 +22,7 @@ public class DataUtility {
 			if(conn.isClosed()) {
 				conn=DataConn.getConnection();
 			}
-			PreparedStatement ps=conn.prepareStatement("select w.InwardNo,w.AckNo from PanNSDLWorkAssign w inner join Inward i on w.AckNo=i.Ackno where i.NsdlUploadStatus is null and w.WorkStatis=1 order by w.InwardNo");
+			PreparedStatement ps=conn.prepareStatement("select distinct top 50000  w.InwardNo,w.AckNo from PanNSDLWorkAssign w inner join Inward i on w.AckNo=i.Ackno inner join ImageUploadDetails u on i.InwardNo=u.InwardID where i.NsdlUploadStatus is null and w.WorkStatis=1 and w.InwardNo between 400500001 and 400950000 order by w.InwardNo");
 			ResultSet rs=ps.executeQuery();
 			while (rs.next()) {
 				ackDetail=new AckDetail();
